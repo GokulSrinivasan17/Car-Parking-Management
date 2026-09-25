@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, LogIn, Car, Sparkles, ShieldCheck, UserCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn, Car } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -40,16 +40,6 @@ const Login = () => {
     }
   };
 
-  const fillDemoAdmin = () => {
-    setEmail('admin@carparking.com');
-    setPassword('admin123');
-  };
-
-  const fillDemoUser = () => {
-    setEmail('user@demo.com');
-    setPassword('user123');
-  };
-
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 py-12 relative">
       {/* Background glow accents */}
@@ -73,32 +63,6 @@ const Login = () => {
           <p className="text-xs sm:text-sm text-slate-500">
             Sign in to access your parking passes & bookings
           </p>
-        </div>
-
-        {/* Demo Credentials Helper Pill */}
-        <div className="mb-6 p-3 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-            <span>Quick Demo Credentials</span>
-            <Sparkles size={13} className="text-amber-500" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={fillDemoAdmin}
-              className="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center justify-center gap-1"
-            >
-              <ShieldCheck size={14} />
-              <span>Admin Demo</span>
-            </button>
-            <button
-              type="button"
-              onClick={fillDemoUser}
-              className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all flex items-center justify-center gap-1"
-            >
-              <UserCheck size={14} />
-              <span>User Demo</span>
-            </button>
-          </div>
         </div>
 
         {/* Login Form */}

@@ -11,7 +11,7 @@
 4. [⚡ Key Features & Capabilities](#-key-features--capabilities)
 5. [💰 Parking Tariff Matrix](#-parking-tariff-matrix)
 6. [🚀 Installation & Setup Guide](#-installation--setup-guide)
-7. [🔑 Default Demo Credentials](#-default-demo-credentials)
+7. [🔑 Default Admin Credentials](#-default-admin-credentials)
 8. [📡 API Documentation & Endpoints](#-api-documentation--endpoints)
 9. [📱 User & Admin Workflow](#-user--admin-workflow)
 
@@ -104,7 +104,7 @@ carparking/
     │   │   ├── BookingPage.jsx        # Multi-level slot reservation & interactive bay map
     │   │   ├── Dashboard.jsx          # Driver Dashboard with active passes & invoice history
     │   │   ├── Home.jsx               # Landing page with live lot preview, tariffs & FAQs
-    │   │   ├── Login.jsx              # Login page with 1-click Demo credentials
+    │   │   ├── Login.jsx              # Login page for users & admins
     │   │   ├── NotFound.jsx           # Custom 404 error page
     │   │   ├── ParkedSlots.jsx        # Live vehicle occupancy board with timers
     │   │   └── Register.jsx           # Driver registration page
@@ -147,7 +147,7 @@ carparking/
 ### 5. Seamless UI/UX Design
 - Glassmorphism, subtle background blurs, animated hover effects, and custom scrollbars.
 - In-app toast notification system replacing browser popups.
-- 1-Click Demo Buttons on the Login page for instant testing.
+- Responsive layout with dark and light accents for mobile, tablet, and desktop.
 
 ---
 
@@ -231,12 +231,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🔑 Default Demo Credentials
+## 🔑 Default Admin Credentials
 
 | Role | Email | Password | Access Level |
 | :--- | :--- | :--- | :--- |
 | **Admin** | `admin@carparking.com` | `admin123` | Full Facility Manager Console |
-| **User (Driver)** | *Register any new account or use 1-Click Demo* | *Your password* | Driver Dashboard & Slot Booking |
+| **User (Driver)** | *Register via the Register page* | *Your password* | Driver Dashboard & Slot Booking |
 
 ---
 
