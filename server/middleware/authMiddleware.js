@@ -55,4 +55,27 @@ const admin = (req, res, next) => {
     return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
 };
 
-module.exports = { protect, admin };
+/**
+ * Optional authentication guard.
+ * Attaches req.user if a valid Bearer token is provided.
+ * Does not block unauthenticated requests.
+ */
+const optionalProtect = async (req, res, next) => {
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            const token = req.headers.authorization.split(' ')[1];
+            if (token) {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                if (mongoose.Types.ObjectId.isValid(decoded.id)) {
+                    req.user = await User.findById(decoded.id).select('-password');
+                }
+            }
+        } catch (error) {
+            // Expired or invalid token in optional context: continue without throwing 401
+            req.user = null;
+        }
+    }
+    return next();
+};
+
+module.exports = { protect, admin, optionalProtect };

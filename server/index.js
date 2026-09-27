@@ -25,6 +25,7 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const slotRoutes = require('./routes/slotRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 // ─── Connect to database ──────────────────────────────────────────────────────
 connectDB();
@@ -32,10 +33,12 @@ connectDB();
 const app = express();
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-const allowedOrigins = [];
+const allowedOrigins = [
+    'https://parksmart-parking.vercel.app'
+];
 
 // Always allow configured CLIENT_URL
-if (process.env.CLIENT_URL) {
+if (process.env.CLIENT_URL && !allowedOrigins.includes(process.env.CLIENT_URL)) {
     allowedOrigins.push(process.env.CLIENT_URL);
 }
 
@@ -61,6 +64,18 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// ─── Security Headers Middleware ──────────────────────────────────────────────
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+});
+
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -79,6 +94,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/slots', slotRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/ai', aiRoutes);
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -95,11 +111,17 @@ app.use((err, req, res, next) => {
         return res.status(403).json({ message: err.message });
     }
 
-    // Log the full error server-side
-    console.error('[ERROR]', err);
+    // JSON parse error (e.g. malformed body from express.json)
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ message: 'Malformed JSON payload in request body' });
+    }
+
+    // Log the full error server-side safely
+    console.error('[ERROR]', err.message || err);
 
     const status = err.statusCode || err.status || 500;
-    const message = isDev ? err.message : 'Internal Server Error';
+    // Mask internal server errors in both dev and prod to prevent sensitive schema/stack leakage
+    const message = status >= 500 ? 'Internal Server Error' : err.message;
 
     res.status(status).json({ message });
 });

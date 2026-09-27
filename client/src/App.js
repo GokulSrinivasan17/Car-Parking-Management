@@ -5,6 +5,7 @@ import { ToastProvider } from './context/ToastContext';
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import ParkSmartAI from './components/ParkSmartAI/ParkSmartAI';
 
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -62,6 +63,7 @@ function App() {
               </Routes>
             </main>
             <Footer />
+            <ParkSmartAI />
           </div>
         </AuthProvider>
       </ToastProvider>

@@ -23,58 +23,118 @@ const validateBookingId = (id, res) => {
     return true;
 };
 
-// ─── @desc  Create a new booking request
-// ─── @route POST /api/bookings
-// ─── @access Private
-const createBooking = async (req, res) => {
+// ─── Concurrency Lock: Prevents double-booking race conditions on the same slot ─
+const slotLockMap = new Map();
+
+const acquireSlotLock = async (slotId) => {
+    const key = slotId.toString();
+    while (slotLockMap.has(key)) {
+        await slotLockMap.get(key);
+    }
+    let release;
+    const promise = new Promise((resolve) => {
+        release = resolve;
+    });
+    slotLockMap.set(key, promise);
+    return () => {
+        slotLockMap.delete(key);
+        release();
+    };
+};
+
+/**
+ * Core booking creation business logic.
+ * Shared between REST API controller and ParkSmart AI createBooking tool.
+ *
+ * @param {Object} params
+ * @returns {Promise<Object>} Populated booking document
+ */
+const createBookingRecord = async ({
+    userId,
+    slotId,
+    vehicleNumber,
+    vehicleType,
+    vehicleModel = '',
+    ownerName,
+    phoneNumber,
+    requestedDuration
+}) => {
+    // Validation
+    if (!slotId || !vehicleNumber || !vehicleType || !ownerName || !phoneNumber) {
+        const error = new Error('Please provide all required fields: slotId, vehicleNumber, vehicleType, ownerName, phoneNumber');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(slotId)) {
+        const error = new Error('Invalid slot ID');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!['Car', 'Bike'].includes(vehicleType)) {
+        const error = new Error('vehicleType must be "Car" or "Bike"');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const duration = Number(requestedDuration);
+    if (!Number.isInteger(duration) || duration < 1 || duration > 30) {
+        const error = new Error('requestedDuration must be a whole number between 1 and 30');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const vehicleNumberTrimmed = vehicleNumber.trim().toUpperCase();
+    if (!/^[A-Z0-9-]{2,15}$/.test(vehicleNumberTrimmed)) {
+        const error = new Error('Invalid vehicle number format');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const releaseLock = await acquireSlotLock(slotId);
     try {
-        const { slotId, vehicleNumber, vehicleType, vehicleModel, ownerName, phoneNumber, requestedDuration } = req.body;
-
-        // Validation
-        if (!slotId || !vehicleNumber || !vehicleType || !ownerName || !phoneNumber) {
-            return res.status(400).json({ message: 'Please provide all required fields: slotId, vehicleNumber, vehicleType, ownerName, phoneNumber' });
-        }
-
-        if (!mongoose.Types.ObjectId.isValid(slotId)) {
-            return res.status(400).json({ message: 'Invalid slot ID' });
-        }
-
-        if (!['Car', 'Bike'].includes(vehicleType)) {
-            return res.status(400).json({ message: 'vehicleType must be "Car" or "Bike"' });
-        }
-
-        const duration = Number(requestedDuration);
-        if (!Number.isInteger(duration) || duration < 1 || duration > 30) {
-            return res.status(400).json({ message: 'requestedDuration must be a whole number between 1 and 30' });
-        }
-
-        const vehicleNumberTrimmed = vehicleNumber.trim().toUpperCase();
-        if (!/^[A-Z0-9-]{2,15}$/.test(vehicleNumberTrimmed)) {
-            return res.status(400).json({ message: 'Invalid vehicle number format' });
-        }
-
         const slot = await ParkingSlot.findById(slotId);
         if (!slot) {
-            return res.status(404).json({ message: 'Slot not found' });
+            const error = new Error('Slot not found');
+            error.statusCode = 404;
+            throw error;
         }
 
         if (slot.status !== 'Available') {
-            return res.status(409).json({ message: 'Slot is not available for booking' });
+            const error = new Error('Slot is not available for booking');
+            error.statusCode = 409;
+            throw error;
         }
 
         // Check if slot type matches vehicle type
         if (slot.type !== vehicleType) {
-            return res.status(400).json({ message: `This slot is designated for ${slot.type} only` });
+            const error = new Error(`This slot is designated for ${slot.type} only`);
+            error.statusCode = 400;
+            throw error;
         }
 
         // Check if this user already has an active/pending booking for this slot
         const duplicateBooking = await Booking.findOne({
-            user: req.user._id,
+            user: userId,
             slot: slotId,
             status: { $in: ['Pending', 'Active'] }
         });
         if (duplicateBooking) {
-            return res.status(409).json({ message: 'You already have an active or pending booking for this slot' });
+            const error = new Error('You already have an active or pending booking for this slot');
+            error.statusCode = 409;
+            throw error;
+        }
+
+        // Check if any conflicting pending/active booking exists on this slot
+        const conflictingBooking = await Booking.findOne({
+            slot: slotId,
+            status: { $in: ['Pending', 'Active'] }
+        });
+        if (conflictingBooking) {
+            const error = new Error('Slot is no longer available; another reservation is currently in progress');
+            error.statusCode = 409;
+            throw error;
         }
 
         // Calculate estimated amount (per day billing)
@@ -87,7 +147,7 @@ const createBooking = async (req, res) => {
         const ticketNumber = `TKT${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
 
         const booking = await Booking.create({
-            user: req.user._id,
+            user: userId,
             slot: slotId,
             vehicleNumber: vehicleNumberTrimmed,
             vehicleType,
@@ -107,10 +167,34 @@ const createBooking = async (req, res) => {
             .populate('slot')
             .populate('user', 'name email phone');
 
+        return populatedBooking;
+    } finally {
+        releaseLock();
+    }
+};
+
+// ─── @desc  Create a new booking request
+// ─── @route POST /api/bookings
+// ─── @access Private
+const createBooking = async (req, res) => {
+    try {
+        const { slotId, vehicleNumber, vehicleType, vehicleModel, ownerName, phoneNumber, requestedDuration } = req.body;
+
+        const populatedBooking = await createBookingRecord({
+            userId: req.user._id,
+            slotId,
+            vehicleNumber,
+            vehicleType,
+            vehicleModel,
+            ownerName,
+            phoneNumber,
+            requestedDuration
+        });
+
         return res.status(201).json(populatedBooking);
     } catch (error) {
         console.error('createBooking error:', error.message);
-        return res.status(500).json({ message: 'Failed to create booking' });
+        return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to create booking' });
     }
 };
 
@@ -417,14 +501,22 @@ const cancelBooking = async (req, res) => {
         booking.status = 'Cancelled';
         await booking.save();
 
-        // Ensure associated slot is marked Available
+        // Ensure associated slot is marked Available only if no other active/pending booking depends on it
         if (booking.slot) {
-            const slot = await ParkingSlot.findById(booking.slot);
-            if (slot && slot.status !== 'Available') {
-                slot.status = 'Available';
-                slot.reservedFor = null;
-                slot.currentVehicle = {};
-                await slot.save();
+            const slotId = booking.slot._id || booking.slot;
+            const otherConflict = await Booking.findOne({
+                _id: { $ne: booking._id },
+                slot: slotId,
+                status: { $in: ['Pending', 'Active'] }
+            });
+            if (!otherConflict) {
+                const slot = await ParkingSlot.findById(slotId);
+                if (slot && slot.status !== 'Available') {
+                    slot.status = 'Available';
+                    slot.reservedFor = null;
+                    slot.currentVehicle = {};
+                    await slot.save();
+                }
             }
         }
 
@@ -441,6 +533,8 @@ const cancelBooking = async (req, res) => {
 
 module.exports = {
     createBooking,
+    createBookingRecord,
+    PRICING,
     getMyBookings,
     endBooking,
     approveBooking,

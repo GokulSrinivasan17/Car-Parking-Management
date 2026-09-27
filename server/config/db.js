@@ -11,9 +11,17 @@ const connectDB = async () => {
     }
 
     try {
-        const conn = await mongoose.connect(process.env.MONGO_URI, {
-            serverSelectionTimeoutMS: 10000, // Fail fast if the server can't be reached
-        });
+        let conn;
+        try {
+            conn = await mongoose.connect(process.env.MONGO_URI, {
+                serverSelectionTimeoutMS: 4000, // Fail fast if Atlas server can't be reached
+            });
+        } catch (primaryErr) {
+            console.warn(`Primary MongoDB connection failed (${primaryErr.message}). Attempting local fallback...`);
+            conn = await mongoose.connect(process.env.LOCAL_MONGO_URI || 'mongodb://127.0.0.1:27017/carparking', {
+                serverSelectionTimeoutMS: 4000,
+            });
+        }
 
         console.log(`MongoDB Connected: ${conn.connection.host}`);
 
