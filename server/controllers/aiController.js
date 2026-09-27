@@ -181,6 +181,14 @@ const chatWithAI = async (req, res) => {
         const user = req.user;
         const confirmationIntent = detectConfirmationIntent(message);
 
+        // Check if AI service is configured on this deployment
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(503).json({
+                success: false,
+                message: 'ParkSmart AI service is temporarily unavailable: GEMINI_API_KEY is not configured in server environment.'
+            });
+        }
+
         // =========================================================================
         // PRIORITY 1: Explicit confirmation/cancellation/modification of pending actions
         // =========================================================================

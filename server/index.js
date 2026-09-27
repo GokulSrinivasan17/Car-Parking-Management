@@ -86,6 +86,7 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         dbState: states[mongoose.connection.readyState] || 'unknown',
+        geminiConfigured: !!process.env.GEMINI_API_KEY,
         timestamp: new Date().toISOString()
     });
 });
